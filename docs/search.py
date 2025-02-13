@@ -43,6 +43,11 @@ DOCUMENT_SEARCH_VECTOR = (
     SearchVector("title", weight="A", config=F("config"))
     + SearchVector(KeyTextTransform("slug", "metadata"), weight="A", config=F("config"))
     + SearchVector(KeyTextTransform("toc", "metadata"), weight="B", config=F("config"))
+    + SearchVector(
+        KeyTextTransform("code_references_search", "metadata"),
+        weight="B",
+        config=F("config"),
+    )
     + SearchVector(KeyTextTransform("body", "metadata"), weight="C", config=F("config"))
     + SearchVector(
         KeyTextTransform("parents", "metadata"), weight="D", config=F("config")

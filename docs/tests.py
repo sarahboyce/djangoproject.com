@@ -20,7 +20,7 @@ from releases.models import Release
 from .models import DOCUMENT_SEARCH_VECTOR, Document, DocumentRelease
 from .sitemaps import DocsSitemap
 from .templatetags.docs import generate_scroll_to_text_fragment, get_all_doc_versions
-from .utils import get_doc_path, sanitize_for_trigram
+from .utils import generate_code_references, get_doc_path, sanitize_for_trigram
 
 
 class ModelsTests(TestCase):
@@ -359,6 +359,65 @@ class TestUtils(TestCase):
         ]:
             with self.subTest(query=query):
                 self.assertEqual(sanitize_for_trigram(query), sanitized_query)
+
+    def test_generate_code_references(self):
+        test_cases = [
+            ("", {}),
+            (
+                '<dl class="py attribute"><dt class="sig sig-object py" id="django.db.migrations.Migration.initial">',
+                {"Migration.initial": "django.db.migrations.Migration.initial"},
+            ),
+            (
+                '<dl class="py class"><dt class="sig sig-object py" id="django.contrib.gis.gdal.Layer">',
+                {"Layer": "django.contrib.gis.gdal.Layer"},
+            ),
+            (
+                '<dl class="py method"><dt class="sig sig-object py" id="db_for_write">',
+                {"db_for_write": "db_for_write"},
+            ),
+            (
+                '<section id="s-multiple-databases">\n<span id="multiple-databases"></span><h1>Multiple databases'
+                '<a class="headerlink" href="#multiple-databases" title="Link to this heading">¶</a></h1>\n'
+                "<p>This topic guide describes Django’s support for interacting with\nmultiple databases.</p>\n"
+                '<dd><p>Suggest the database that should be used for read operations for\nobjects of type <code class="docutils '
+                'literal notranslate"><span class="pre">model</span></code>.</p></dd></dl>\n\n<dl class="py method">\n'
+                '<dt class="sig sig-object py" id="db_for_write">\n<span class="sig-name descname"><span class="pre">db_for_write'
+                '</span></span>(<em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, '
+                '<em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">hints'
+                '</span></span></em>)<a class="headerlink" href="#db_for_write" title="Link to this definition">¶</a></dt>\n'
+                "<dd><p>Suggest the database that should be used for writes of objects of\ntype Model.</p>\n</dd></dl>\n\n"
+                '<dl class="py method">\n<dt class="sig sig-object py" id="allow_relation">\n<span class="sig-name descname">'
+                '<span class="pre">allow_relation</span></span>(<em class="sig-param"><span class="n"><span class="pre">obj1'
+                '</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obj2</span></span></em>, '
+                '<em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">'
+                'hints</span></span></em>)<a class="headerlink" href="#allow_relation" title="Link to this definition">¶</a></dt>'
+                '\n<dd><p>Return <code class="docutils literal notranslate"><span class="pre">True</span></code> if a relation '
+                'between <code class="docutils literal notranslate"><span class="pre">obj1</span></code> and <code class="docutils '
+                'literal notranslate"><span class="pre">obj2</span></code> should be\nallowed, <code class="docutils literal '
+                'notranslate"><span class="pre">False</span></code> if the relation should be prevented, or <code class="docutils '
+                'literal notranslate"><span class="pre">None</span></code> if\nthe router has no opinion. This is purely a '
+                "validation operation,\nused by foreign key and many to many operations to determine if a\nrelation should be "
+                'allowed between two objects.</p>\n</dd></dl>\n\n<dl class="py method">\n<dt class="sig sig-object py" '
+                'id="allow_migrate">\n<span class="sig-name descname"><span class="pre">allow_migrate</span></span>(<em '
+                'class="sig-param"><span class="n"><span class="pre">db</span></span></em>, <em class="sig-param"><span class="n">'
+                '<span class="pre">app_label</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name'
+                '</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None'
+                '</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span '
+                'class="pre">hints</span></span></em>)<a class="headerlink" href="#allow_migrate" title="Link to this definition">¶'
+                "</a></dt>\n<dd><p>Determine if the migration operation is allowed to run on the database with\nalias <code "
+                'class="docutils literal notranslate"><span class="pre">db</span></code>. Return <code class="docutils literal '
+                'notranslate"><span class="pre">True</span></code> if the operation should run, <code class="docutils literal '
+                'notranslate"><span class="pre">False</span></code> if it\nshouldn’t run, or <code class="docutils literal notranslate">'
+                '<span class="pre">None</span></code> if the router has no opinion.</p>\n</dd></dl>\n\n</section>\n</section>\n</section>\n',
+                {
+                    "db_for_write": "db_for_write",
+                    "allow_migrate": "allow_migrate",
+                    "allow_relation": "allow_relation",
+                },
+            ),
+        ]
+        for body, expected in test_cases:
+            self.assertEqual(generate_code_references(body), expected)
 
 
 class UpdateDocTests(TestCase):
