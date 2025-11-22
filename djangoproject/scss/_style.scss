@@ -2286,88 +2286,142 @@ h2+.list-link-soup {
     z-index: 1;
     pointer-events: none;
 
-    list-style: none;
-
-    .icon {
-        margin-right: 4px;
-    }
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.6em;
 
     ul {
         text-align: right;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 3px;
+        @include sans-serif;
+    }
+
+    .icon {
+        vertical-align: middle;
     }
 }
 
-#doc-versions,
-#doc-languages,
 #faq-link,
-#backtotop-link {
+#backtotop-link,
+#doc-languages,
+#doc-versions {
+    font-size: 12px;
+    @include sans-serif;
+}
+
+#faq-link li,
+#backtotop-link li {
     margin: 0;
-    padding-top: 0.25em;
-    padding-bottom: 0.25em;
+    background: var(--body-bg);
+    border: 1px solid var(--hairline-color);
+    border-radius: 4px;
+    padding: 0;
+    cursor: pointer;
+    pointer-events: auto;
 
-    &.open {
-        li {
-            display: inline-block;
-
-            &.current {
-                border: 1px solid $green-light;
-            }
-        }
+    a {
+        display: inline-block;
+        padding: 8px 15px;
+        background: transparent;
+        border-radius: 4px;
+        font-weight: 700;
+        color: var(--primary);
+        text-decoration: none;
     }
 
-    li {
-        display: none;
-        margin: 0 3px;
-        @include sans-serif;
-        color: var(--body-fg);
-        @include font-size(12);
-        pointer-events: auto;
-
-        &.current {
-            display: inline-block;
-            background: var(--body-bg);
-            padding: 8px 15px;
-            border: 1px solid var(--hairline-color);
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        &.current-link {
-            display: inline-block;
-        }
-
+    &:hover,
+    &:focus-within {
+        border-color: $green-light;
         a {
+            color: var(--secondary);
+        }
+    }
+}
+
+#doc-languages,
+#doc-versions {
+    display: inline-block;
+    position: relative;
+    pointer-events: auto;
+
+    li {
+        display: inline-block;
+        margin: 0 3px;
+        background: var(--body-bg);
+        border: 1px solid var(--hairline-color);
+        border-radius: 4px;
+        padding: 0;
+        cursor: pointer;
+        position: relative;
+
+        > a,
+        > span {
             display: inline-block;
-            background: var(--body-bg);
+            padding: 8px 15px;
+            background: transparent;
+            border-radius: 4px;
             color: var(--primary);
             text-decoration: none;
             font-weight: 700;
-            padding: 8px 15px;
-            border: 1px solid var(--hairline-color);
-            border-radius: 4px;
+        }
 
-            &:hover {
-                color: var(--secondary);
-                border: 1px solid $green-light;
+        &.current {
+            > a,
+            > span {
+                color: var(--body-fg);
+                font-weight: normal;
+            }
+
+            span strong {
+                font-weight: 700;
+            }
+
+            &::after {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: -8px;
+                width: 8px;
+                height: 100%;
             }
         }
 
-        a.icon-chevron-up-align {
-            // Should be removed when icon-chevron-up image have the same black space on both sides.
-            padding-right: 11px;
+        &:hover,
+        &:focus-within {
+            border-color: $green-light;
+
+            > a {
+                color: var(--secondary);
+            }
+        }
+
+        &.other {
+            display: none;
+            position: absolute;
+            right: 100%;
+            top: 0;
+            margin-right: 2px;
+            white-space: nowrap;
+            z-index: 2;
         }
     }
 
-    &:hover {
-        pointer-events: auto;
-        padding: 2em 0;
-        margin: -1.75em 0;
-
-        li {
-            display: inline-block;
-        }
+    &:hover li.other,
+    &:focus-within li.other {
+        display: inline-block;
     }
+}
 
+#doc-languages li,
+#doc-versions li {
+    flex: 0 0 auto;
 }
 
 #dev-warning,

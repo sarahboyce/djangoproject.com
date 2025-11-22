@@ -56,12 +56,15 @@
   <div id="version-switcher">
     <ul id="faq-link">
       <li class="current-link">
-        <a href="{% url 'document-detail' lang=lang version=version url='faq/help' host 'docs' %}">
+        <a tabindex="0" href="{% url 'document-detail' lang=lang version=version url='faq/help' host 'docs' %}">
           <span>{% trans "Getting Help" %}</span>
         </a>
       </li>
     </ul>
     <ul id="doc-languages" class="language-switcher doc-switcher">
+      <li class="current" tabindex="0">
+        <span>{% trans "Language:" %} <strong>{{ lang }}</strong></span>
+      </li>
       {% for available_lang in available_languages %}
         {% if lang != available_lang %}
           <li class="other">
@@ -74,14 +77,15 @@
           </li>
         {% endif %}
       {% endfor %}
-      <li class="current"
-          title="{% blocktrans %}Click on the links on the left to switch to another language.{% endblocktrans %}">
-        <span>{% trans "Language:" %} <strong>{{ lang }}</strong></span>
-      </li>
     </ul>
 
     {% get_all_doc_versions docurl as other_versions %}
     <ul id="doc-versions" class="version-switcher doc-switcher">
+      <li class="current {% if release.is_dev %}dev{% endif %}" tabindex="0">
+        <span>{% trans "Documentation version:" %}
+          <strong>{% if release.is_dev %}development{% else %}{{ version }}{% endif %}</strong>
+        </span>
+      </li>
       {% for other_version in other_versions %}
         {% if version != other_version %}
           <li class="other">
@@ -94,22 +98,10 @@
           </li>
         {% endif %}
       {% endfor %}
-      <li class="current{% if release.is_dev %} dev{% endif %}"
-          title="{% if release.is_dev %}{% blocktrans trimmed %}
-                   This document is for Django's development version, which can be significantly different from previous releases.
-                 {% endblocktrans %}{% else %}{% blocktrans trimmed %}
-                   This document describes Django {{ version }}.
-                 {% endblocktrans %}{% endif %} {% blocktrans trimmed %}
-                   Click on the links on the left to see other versions.
-                 {% endblocktrans %}">
-        <span>{% trans "Documentation version:" %}
-          <strong>{% if release.is_dev %}development{% else %}{{ version }}{% endif %}</strong>
-        </span>
-      </li>
     </ul>
     <ul id="backtotop-link">
       <li class="current-link">
-        <a href="#top" aria-label="Back to top" class="icon-chevron-up-align"><i class="icon icon-chevron-up"></i></a>
+        <a tabindex="0" href="#top" aria-label="Back to top" class="icon-chevron-up-align"><i class="icon icon-chevron-up"></i></a>
       </li>
     </ul>
   </div>
