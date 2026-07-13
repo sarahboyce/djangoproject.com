@@ -66,5 +66,7 @@ jobs:
                   echo '"secret_key": "a"}' >> conf/secrets.json
 
             - name: Run tests
+              env:
+                  PYTHONWARNINGS: default
               run: |
                   make ci
