@@ -5,6 +5,7 @@ on:
     schedule:
         - cron: "0 0 * * *"
     workflow_dispatch:
+    pull_request:
 
 env:
     PYTHON_VERSION: 3.12
