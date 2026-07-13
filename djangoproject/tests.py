@@ -1,14 +1,67 @@
+import os
 from http import HTTPStatus
 from io import StringIO
 
+from django.conf import settings
+from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from django.core.management import call_command
 from django.test import TestCase
+from django.urls import NoReverseMatch, get_resolver
+from django.utils.translation import activate, gettext as _
 from django_hosts.resolvers import reverse
+from playwright.sync_api import expect, sync_playwright
 
 from docs.models import DocumentRelease, Release
 
 
-class TemplateViewTests(TestCase):
+class ReleaseMixin:
+    @classmethod
+    def setUpTestData(cls):
+        r2, _ = Release.objects.get_or_create(version="2.0")
+        DocumentRelease.objects.get_or_create(
+            is_default=True,
+            defaults={"lang": settings.DEFAULT_LANGUAGE_CODE, "release": r2},
+        )
+
+
+class LocaleSmokeTests(TestCase):
+    """
+    Smoke test a translated string from each of the 3 locale directories
+    (one defined in settings.LOCALE_PATHS, plus the dashboard and docs apps).
+    """
+
+    def test_dashboard_locale(self):
+        """dashboard/locale/ should contain translations for 'Development dashboard'"""
+        activate("fr")
+        translated = _("Development dashboard")
+        self.assertEqual(
+            translated,
+            "Tableau de bord de développement",
+            msg="dashboard/locale/ translation not loaded or incorrect",
+        )
+
+    def test_docs_locale(self):
+        """docs/locale/ should contain translations for 'Using Django'"""
+        activate("fr")
+        translated = _("Using Django")
+        self.assertEqual(
+            translated,
+            "Utilisation de Django",
+            msg="docs/locale/ translation not loaded or incorrect",
+        )
+
+    def test_project_locale(self):
+        """locale/ should contain translations for 'Fundraising'"""
+        activate("fr")
+        translated = _("Fundraising")
+        self.assertEqual(
+            translated,
+            "Levée de fonds",
+            msg="project-level locale/ translation not loaded or incorrect",
+        )
+
+
+class TemplateViewTests(ReleaseMixin, TestCase):
     """
     Tests for views that are instances of TemplateView.
     """
@@ -44,7 +97,7 @@ class TemplateViewTests(TestCase):
         self.assertView("styleguide")
 
 
-class ExcludeHostsLocaleMiddlewareTests(TestCase):
+class ExcludeHostsLocaleMiddlewareTests(ReleaseMixin, TestCase):
     """
     djangoproject.middleware.ExcludeHostsLocaleMiddleware properly prevents
     the hosts in settings.LOCALE_MIDDLEWARE_EXCLUDED_HOSTS from being
@@ -56,16 +109,12 @@ class ExcludeHostsLocaleMiddlewareTests(TestCase):
     docs_host = "docs.djangoproject.localhost"
     www_host = "www.djangoproject.localhost"
 
-    @classmethod
-    def setUpTestData(cls):
-        r2 = Release.objects.create(version="2.0")
-        DocumentRelease.objects.create(lang="en", release=r2, is_default=True)
-
     def test_docs_host_excluded(self):
-        "We get no Content-Language or Vary headers when docs host is excluded"
+        """We get no Content-Language or Vary headers when docs host is excluded"""
         with self.settings(LOCALE_MIDDLEWARE_EXCLUDED_HOSTS=[self.docs_host]):
             resp = self.client.get("/", headers={"host": self.docs_host})
-        self.assertEqual(resp.status_code, HTTPStatus.FOUND)
+
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
         self.assertNotIn("Content-Language", resp)
         self.assertNotIn("Vary", resp)
 
@@ -89,20 +138,22 @@ class ExcludeHostsLocaleMiddlewareTests(TestCase):
             LOCALE_MIDDLEWARE_EXCLUDED_HOSTS=[self.docs_host], USE_X_FORWARDED_HOST=True
         ):
             resp = self.client.get("/", headers={"x-forwarded-host": self.docs_host})
-        self.assertEqual(resp.status_code, HTTPStatus.FOUND)
+
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
         self.assertNotIn("Content-Language", resp)
         self.assertNotIn("Vary", resp)
 
     def test_docs_host_not_excluded(self):
-        "We still get Content-Language when docs host is not excluded"
+        """We still get Content-Language when docs host is not excluded"""
         with self.settings(LOCALE_MIDDLEWARE_EXCLUDED_HOSTS=[]):
             resp = self.client.get("/", headers={"host": self.docs_host})
-        self.assertEqual(resp.status_code, HTTPStatus.FOUND)
+
+        self.assertEqual(resp.status_code, HTTPStatus.OK)
         self.assertIn("Content-Language", resp)
         self.assertIn("Vary", resp)
 
     def test_www_host(self):
-        "www should still use LocaleMiddleware"
+        """www should still use LocaleMiddleware"""
         with self.settings(LOCALE_MIDDLEWARE_EXCLUDED_HOSTS=[self.docs_host]):
             resp = self.client.get("/", headers={"host": self.www_host})
         self.assertEqual(resp.status_code, HTTPStatus.OK)
@@ -110,7 +161,7 @@ class ExcludeHostsLocaleMiddlewareTests(TestCase):
         self.assertIn("Vary", resp)
 
     def test_www_host_with_port(self):
-        "www (with a port) should still use LocaleMiddleware"
+        """www (with a port) should still use LocaleMiddleware"""
         with self.settings(LOCALE_MIDDLEWARE_EXCLUDED_HOSTS=[self.docs_host]):
             resp = self.client.get("/", headers={"host": "%s:8000" % self.www_host})
         self.assertEqual(resp.status_code, HTTPStatus.OK)
@@ -118,6 +169,7 @@ class ExcludeHostsLocaleMiddlewareTests(TestCase):
         self.assertIn("Vary", resp)
 
 
+# https://adamj.eu/tech/2024/06/23/django-test-pending-migrations/
 class PendingMigrationsTests(TestCase):
     def test_no_pending_migrations(self):
         out = StringIO()
@@ -130,3 +182,103 @@ class PendingMigrationsTests(TestCase):
             )
         except SystemExit:  # pragma: no cover
             raise AssertionError("Pending migrations:\n" + out.getvalue()) from None
+
+
+class Header1Tests(ReleaseMixin, TestCase):
+    def extract_patterns(self, patterns, prefix="", urls=None):
+        urls = urls or []
+        for pattern in patterns:
+            if hasattr(pattern, "url_patterns"):
+                self.extract_patterns(
+                    pattern.url_patterns, prefix + pattern.pattern.regex.pattern
+                )
+            elif hasattr(pattern, "pattern") and pattern.name:
+                try:
+                    urls.append(reverse(pattern.name))
+                except NoReverseMatch:
+                    pass  # Ignore URLs that require arguments.
+        return urls
+
+    def test_single_h1_per_page(self):
+        excluded_urls = [
+            "rss/",
+            "styleguide/",  # Has multiple <h1> examples.
+            "admin/",  # Admin templates are out of our control.
+            "reset/done/",  # Uses an admin template.
+            "sitemap.xml",
+        ]
+        resolver = get_resolver()
+        urls = self.extract_patterns(resolver.url_patterns)
+        for url in urls:
+            if all(url_substring not in url for url_substring in excluded_urls):
+                with self.subTest(url=url):
+                    response = self.client.get(url)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertContains(response, "<h1", count=1)
+
+
+class SecurityTxtTests(TestCase):
+    """Tests for the security.txt file."""
+
+    def test_security_txt(self):
+        """The security.txt file should be reachable at the expected URL."""
+        response = self.client.get("/.well-known/security.txt")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(response["Content-Type"], "text/plain")
+        self.assertIn("Expires:", response.content.decode())
+
+
+class SiteMapTests(TestCase):
+    def test_sitemap_renders(self):
+        response = self.client.get(reverse("sitemap"))
+        self.assertEqual(response.status_code, 200)
+
+
+class EndToEndTests(ReleaseMixin, StaticLiveServerTestCase):
+    @classmethod
+    def setUpClass(cls):
+        os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
+        super().setUpClass()
+        cls.playwright = sync_playwright().start()
+        cls.browser = cls.playwright.chromium.launch()
+        cls.mac_user_agent = "Mozilla/5.0 (Macintosh) AppleWebKit"
+        cls.windows_user_agent = "Mozilla/5.0 (Windows NT 10.0)"
+        cls.mobile_linux_user_agent = "Mozilla/5.0 (Linux; Android 10; Mobile)"
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.browser.close()
+        cls.playwright.stop()
+
+    def setUp(self):
+        super().setUp()
+        self.setUpTestData()
+
+    def test_search_ctrl_k_hotkey(self):
+        page1 = self.browser.new_page(user_agent=self.windows_user_agent)
+        page2 = self.browser.new_page(
+            user_agent=self.mobile_linux_user_agent,
+            viewport={"width": 375, "height": 812},
+        )
+        for page in [page1, page2]:
+            with self.subTest(page=page):
+                page.goto(self.live_server_url)
+                search_bar = page.locator("#id_q")
+                expect(search_bar).to_have_attribute("placeholder", "Search (Ctrl+K)")
+                is_focused = page.evaluate("document.activeElement.id === 'id_q'")
+                self.assertFalse(is_focused)
+
+                page.keyboard.press("Control+KeyK")
+                is_focused = page.evaluate("document.activeElement.id === 'id_q'")
+                self.assertTrue(is_focused)
+                page.close()
+
+    def test_search_placeholder_mac_mode(self):
+        page = self.browser.new_page(user_agent=self.mac_user_agent)
+        page.goto(self.live_server_url)
+
+        desktop_search_bar = page.locator("#id_q")
+        expect(desktop_search_bar).to_have_attribute("placeholder", "Search (⌘\u200aK)")
+
+        page.close()
